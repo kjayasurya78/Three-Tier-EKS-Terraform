@@ -1,0 +1,75 @@
+# Grafana values for H&M Shop monitoring
+
+adminUser:     admin
+adminPassword: HMGrafana2024!
+
+service:
+  type: LoadBalancer
+  port: 80
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+
+resources:
+  requests:
+    cpu:    "100m"
+    memory: "128Mi"
+  limits:
+    cpu:    "200m"
+    memory: "256Mi"
+
+persistence:
+  enabled:          true
+  storageClassName: hm-ebs-gp2
+  size:             5Gi
+
+# ── Datasources ───────────────────────────────────────────────────────────────
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name:      Prometheus
+        type:      prometheus
+        url:       http://prometheus-kube-prometheus-prometheus.monitoring:9090
+        access:    proxy
+        isDefault: true
+
+# ── Pre-imported Dashboards ───────────────────────────────────────────────────
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name:            default
+        orgId:           1
+        folder:          "H&M Shop"
+        type:            file
+        disableDeletion: false
+        editable:        true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+dashboards:
+  default:
+    kubernetes-cluster:
+      gnetId:    6417
+      revision:  1
+      datasource: Prometheus
+    kubernetes-pods:
+      gnetId:    6336
+      revision:  1
+      datasource: Prometheus
+    node-exporter:
+      gnetId:    1860
+      revision:  37
+      datasource: Prometheus
+    nginx-ingress:
+      gnetId:    9614
+      revision:  1
+      datasource: Prometheus
+
+grafana.ini:
+  server:
+    root_url: "%(protocol)s://%(domain)s/"
+  security:
+    allow_embedding: true
+  users:
+    allow_sign_up: false

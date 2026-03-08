@@ -1,0 +1,47 @@
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/tfplan
+terraform/destroy.tfplan
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/terraform.tfvars
+
+# Logs
+*.log
+install.log
+uninstall.log
+
+# SSH Keys
+*.pem
+*.key
+
+# Secrets
+stack-urls.txt
+.env
+.env.*
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# Build outputs
+app/frontend/build/
+app/frontend/dist/
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Snyk / Trivy results (generated at runtime)
+snyk-results.json
+trivy-*.txt

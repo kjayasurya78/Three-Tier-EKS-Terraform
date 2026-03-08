@@ -1,0 +1,68 @@
+# kube-prometheus-stack values for H&M Shop monitoring
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ── Prometheus ────────────────────────────────────────────────────────────────
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    retentionSize: "8GB"
+    resources:
+      requests:
+        cpu:    "200m"
+        memory: "512Mi"
+      limits:
+        cpu:    "500m"
+        memory: "1Gi"
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: hm-ebs-gp2
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+    # Scrape the hm-shop backend /metrics endpoint
+    additionalScrapeConfigs:
+      - job_name: hm-backend
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [hm-shop]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: backend-service
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: http
+        metrics_path: /metrics
+        scheme: http
+
+  service:
+    type: ClusterIP
+
+# ── AlertManager ──────────────────────────────────────────────────────────────
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu:    "50m"
+        memory: "64Mi"
+      limits:
+        cpu:    "100m"
+        memory: "128Mi"
+
+# ── Grafana — disabled here, deployed separately ──────────────────────────────
+grafana:
+  enabled: false
+
+# ── Node Exporter ─────────────────────────────────────────────────────────────
+nodeExporter:
+  enabled: true
+
+# ── kube-state-metrics ────────────────────────────────────────────────────────
+kubeStateMetrics:
+  enabled: true
