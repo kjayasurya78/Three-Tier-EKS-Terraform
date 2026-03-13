@@ -366,16 +366,18 @@ java -version
 
 echo "=== Installing Jenkins ==="
 if ! command -v jenkins &>/dev/null; then
-  # Clean up ALL previous attempts (keyring files + sources list)
+  # Clean up ALL previous attempts
   sudo rm -f /usr/share/keyrings/jenkins-keyring.asc \
              /usr/share/keyrings/jenkins-keyring.gpg \
              /etc/apt/trusted.gpg.d/jenkins.asc \
              /etc/apt/trusted.gpg.d/jenkins.gpg \
              /etc/apt/sources.list.d/jenkins.list
-  # Put key in trusted.gpg.d — apt auto-trusts all keys here, no signed-by needed
+  # gpg --dearmor runs as ubuntu user (no sudo = no TTY issue)
+  # sudo tee writes binary .gpg to privileged dir (definitely read by apt)
   curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key \
-    | sudo tee /etc/apt/trusted.gpg.d/jenkins.asc > /dev/null
-  sudo chmod 644 /etc/apt/trusted.gpg.d/jenkins.asc
+    | gpg --dearmor \
+    | sudo tee /etc/apt/trusted.gpg.d/jenkins.gpg > /dev/null
+  sudo chmod 644 /etc/apt/trusted.gpg.d/jenkins.gpg
   echo "deb https://pkg.jenkins.io/debian-stable binary/" \
     | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
   sudo apt-get update -qq
@@ -432,10 +434,10 @@ if ! command -v trivy &>/dev/null; then
              /etc/apt/trusted.gpg.d/trivy.asc \
              /etc/apt/trusted.gpg.d/trivy.gpg \
              /etc/apt/sources.list.d/trivy.list
-  # Put key in trusted.gpg.d — apt auto-trusts all keys here, no signed-by needed
   curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key \
-    | sudo tee /etc/apt/trusted.gpg.d/trivy.asc > /dev/null
-  sudo chmod 644 /etc/apt/trusted.gpg.d/trivy.asc
+    | gpg --dearmor \
+    | sudo tee /etc/apt/trusted.gpg.d/trivy.gpg > /dev/null
+  sudo chmod 644 /etc/apt/trusted.gpg.d/trivy.gpg
   echo "deb https://aquasecurity.github.io/trivy-repo/deb generic main" \
     | sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
   sudo apt-get update -qq
