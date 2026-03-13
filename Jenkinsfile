@@ -14,6 +14,19 @@ pipeline {
 
   stages {
 
+    stage('Check Commit') {
+      steps {
+        script {
+          def msg = sh(script: 'git log -1 --pretty=%B', returnStdout: true).trim()
+          if (msg.contains('[skip ci]')) {
+            currentBuild.result = 'NOT_BUILT'
+            error('Skipping pipeline: commit message contains [skip ci]')
+          }
+        }
+      }
+    }
+
+
     // ─────────────────────────────────────────────────────────────────────────
     // STAGE 1 — Code Quality Analysis (SonarQube)
     // Quality Gate failure aborts pipeline — prevents bad code reaching prod
