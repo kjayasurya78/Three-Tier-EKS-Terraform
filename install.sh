@@ -475,7 +475,8 @@ phase_argocd() {
 
   info "Installing ArgoCD..."
   # --server-side avoids 'annotation too long' error on ArgoCD CRDs
-  kubectl apply --server-side -n "${ARGOCD_NAMESPACE}" \
+  # --force-conflicts avoids conflict errors when resources were previously applied with client-side manager
+  kubectl apply --server-side --force-conflicts -n "${ARGOCD_NAMESPACE}" \
     -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
   info "Waiting for ArgoCD server to be Available (up to 3 minutes)..."
