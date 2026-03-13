@@ -472,9 +472,17 @@ fi
 # ─────────────────────────────────────────────────────────────
 step "11 — Creating Jenkins Pipeline Job"
 
+# Refresh crumb — the one from Step 9 may have expired by now
+info "Refreshing Jenkins CSRF crumb..."
+CRUMB_JSON=$(curl -sSf -u "${JENKINS_AUTH}" \
+  "${JENKINS_URL}/crumbIssuer/api/json" 2>/dev/null || echo "{}")
+CRUMB_FIELD=$(echo "${CRUMB_JSON}" | jq -r '.crumbRequestField // "Jenkins-Crumb"')
+CRUMB_VALUE=$(echo "${CRUMB_JSON}" | jq -r '.crumb // ""')
+[ -n "${CRUMB_VALUE}" ] && CRUMB_HEADER="${CRUMB_FIELD}: ${CRUMB_VALUE}" || CRUMB_HEADER="Jenkins-Crumb: skip"
+
 JOB_XML="<?xml version='1.1' encoding='UTF-8'?>
 <flow-definition plugin='workflow-job'>
-  <description>H&amp;M Fashion Clone CI/CD Pipeline — 7-stage DevSecOps</description>
+  <description>H&amp;M Fashion Clone CI/CD Pipeline — 6-stage DevSecOps</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <com.coravy.hudson.plugins.github.GithubProjectProperty>
@@ -509,7 +517,6 @@ JOB_XML="<?xml version='1.1' encoding='UTF-8'?>
   </definition>
 </flow-definition>"
 
-# Try to create
 HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
   -u "${JENKINS_AUTH}" \
   -H "${CRUMB_HEADER}" \
@@ -518,7 +525,7 @@ HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
   "${JENKINS_URL}/createItem?name=hm-fashion-pipeline" 2>/dev/null || echo "000")
 
 if [[ "${HTTP_CODE}" =~ ^(200|201)$ ]]; then
-  success "Pipeline job created: hm-fashion-pipeline"
+  success "Pipeline job created: hm-fashion-pipeline (HTTP ${HTTP_CODE})"
 elif [ "${HTTP_CODE}" = "400" ]; then
   info "Job already exists — updating configuration..."
   HTTP_CODE2=$(curl -sS -o /dev/null -w "%{http_code}" \
@@ -528,97 +535,80 @@ elif [ "${HTTP_CODE}" = "400" ]; then
     -d "${JOB_XML}" \
     "${JENKINS_URL}/job/hm-fashion-pipeline/config.xml" 2>/dev/null || echo "000")
   success "Pipeline job updated (HTTP ${HTTP_CODE2})"
+elif [ "${HTTP_CODE}" = "403" ]; then
+  warn "Job creation returned HTTP 403 — Jenkins may need the initial setup wizard completed."
+  warn "Open ${JENKINS_URL} in a browser, finish the setup wizard, then re-run this script."
 else
-  warn "Job creation returned HTTP ${HTTP_CODE} — check Jenkins manually"
+  warn "Job creation returned HTTP ${HTTP_CODE} — create manually at ${JENKINS_URL}/newJob"
 fi
 
 # ─────────────────────────────────────────────────────────────
-# WEBHOOK INSTRUCTIONS (always manual)
+# STEP 12: CREATE GITHUB WEBHOOK (AUTOMATIC via GitHub API)
 # ─────────────────────────────────────────────────────────────
-echo ""
-echo -e "${YELLOW}${BOLD}"
-echo "╔══════════════════════════════════════════════════════════════════╗"
-echo "║          ⚙️  MANUAL STEP REQUIRED — GitHub Webhook               ║"
-echo "╠══════════════════════════════════════════════════════════════════╣"
-echo "║  GitHub webhooks require browser-based OAuth and cannot be      ║"
-echo "║  created via API without an existing installation token.        ║"
-echo "║                                                                  ║"
-echo "║  Step 1: Open this URL in your browser:                         ║"
-echo "║  https://github.com/${GITHUB_USER}/${GITHUB_REPO_NAME}/settings/hooks/new"
-echo "║                                                                  ║"
-echo "║  Step 2: Fill in:                                               ║"
-echo "║    Payload URL:  ${JENKINS_URL}/github-webhook/         ║"
-echo "║    Content type: application/json                               ║"
-echo "║    Events:       ⦿ Just the push event                         ║"
-echo "║                                                                  ║"
-echo "║  Step 3: Click 'Add webhook'                                    ║"
-echo "║          Look for a green ✓ checkmark = success                 ║"
-echo "╚══════════════════════════════════════════════════════════════════╝"
-echo -e "${RESET}"
+step "12 — Creating GitHub Webhook"
 
-# ─────────────────────────────────────────────────────────────
-# FINAL SUMMARY
-# ─────────────────────────────────────────────────────────────
-echo -e "${GREEN}${BOLD}"
-echo "╔══════════════════════════════════════════════════════════════════╗"
-echo "║           ✅ JENKINS PIPELINE SETUP COMPLETE                     ║"
-echo "╠══════════════════════════════════════════════════════════════════╣"
-echo "║  Jenkins URL:    ${JENKINS_URL}                       ║"
-echo "║  Pipeline Job:   ${JENKINS_URL}/job/hm-fashion-pipeline/ ║"
-echo "║  SonarQube URL:  ${SONAR_URL}                         ║"
-echo "║  Sonar Project:  ${SONAR_URL}/dashboard?id=${SONAR_PROJECT_KEY} ║"
-echo "╠══════════════════════════════════════════════════════════════════╣"
-echo "║  Credentials registered in Jenkins:                              ║"
-echo "║    ✅ aws-access-key   — AWS Access Key ID                       ║"
-echo "║    ✅ aws-secret-key   — AWS Secret Access Key                   ║"
-echo "║    ✅ sonar-token      — SonarQube analysis token                ║"
-echo "║    ✅ git-credentials  — GitHub username + PAT                   ║"
-echo "╠══════════════════════════════════════════════════════════════════╣"
-echo "║  Next steps:                                                     ║"
-echo "║  1. Complete the GitHub Webhook (manual — see box above)        ║"
-echo "║  2. Verify <ACCOUNT_ID> is replaced in k8s_manifests/           ║"
-echo "║  3. Trigger first run: git commit --allow-empty -m 'ci: trigger'║"
-echo "║                        git push origin main                     ║"
-echo "╚══════════════════════════════════════════════════════════════════╝"
-echo -e "${RESET}"
- 'hm-fashion-pipeline' created"
+info "Registering Jenkins webhook with GitHub API..."
+WEBHOOK_PAYLOAD="{
+  \"name\": \"web\",
+  \"active\": true,
+  \"events\": [\"push\"],
+  \"config\": {
+    \"url\": \"${JENKINS_URL}/github-webhook/\",
+    \"content_type\": \"json\",
+    \"insecure_ssl\": \"0\"
+  }
+}"
+
+WEBHOOK_RESPONSE=$(curl -sS -w "\n%{http_code}" \
+  -u "${GITHUB_USER}:${GITHUB_PAT}" \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2022-11-28" \
+  -X POST \
+  "https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO_NAME}/hooks" \
+  -d "${WEBHOOK_PAYLOAD}" 2>/dev/null || echo "{}\n000")
+
+WEBHOOK_HTTP=$(echo "${WEBHOOK_RESPONSE}" | tail -1)
+WEBHOOK_BODY=$(echo "${WEBHOOK_RESPONSE}" | head -n -1)
+WEBHOOK_ID=$(echo "${WEBHOOK_BODY}" | jq -r '.id // ""' 2>/dev/null || echo "")
+WEBHOOK_ERR=$(echo "${WEBHOOK_BODY}" | jq -r '.message // ""' 2>/dev/null || echo "")
+
+if [ "${WEBHOOK_HTTP}" = "201" ] && [ -n "${WEBHOOK_ID}" ]; then
+  success "GitHub webhook created (ID: ${WEBHOOK_ID})"
+  success "Webhook URL: ${JENKINS_URL}/github-webhook/"
+elif echo "${WEBHOOK_ERR}" | grep -qi "already exists\|Hook already exists"; then
+  success "GitHub webhook already exists — no action needed."
+elif [ "${WEBHOOK_HTTP}" = "404" ]; then
+  warn "Webhook creation returned 404 — check GITHUB_REPO_NAME (${GITHUB_REPO_NAME}) is correct."
+  warn "Manual fallback: https://github.com/${GITHUB_USER}/${GITHUB_REPO_NAME}/settings/hooks/new"
+elif [ "${WEBHOOK_HTTP}" = "422" ]; then
+  warn "Webhook already exists (HTTP 422) — skipping."
 else
-  warn "Pipeline job creation returned HTTP ${CREATE_STATUS} — create manually at ${JENKINS_URL}/newJob"
+  warn "Webhook creation returned HTTP ${WEBHOOK_HTTP}: ${WEBHOOK_ERR}"
+  warn "Ensure your PAT has the 'admin:repo_hook' scope."
+  echo -e "${YELLOW}  Manual fallback:${RESET}"
+  echo -e "${YELLOW}    URL: https://github.com/${GITHUB_USER}/${GITHUB_REPO_NAME}/settings/hooks/new${RESET}"
+  echo -e "${YELLOW}    Payload URL:  ${JENKINS_URL}/github-webhook/${RESET}"
+  echo -e "${YELLOW}    Content type: application/json${RESET}"
+  echo -e "${YELLOW}    Event:        Just the push event${RESET}"
 fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Webhook instructions (ALWAYS MANUAL — cannot be automated)
-# ─────────────────────────────────────────────────────────────────────────────
-echo ""
-echo -e "${YELLOW}${BOLD}╔══════════════════════════════════════════════════════════════════╗${RESET}"
-echo -e "${YELLOW}${BOLD}║  🔗  MANUAL STEP: Configure GitHub Webhook                      ║${RESET}"
-echo -e "${YELLOW}${BOLD}╠══════════════════════════════════════════════════════════════════╣${RESET}"
-echo -e "${YELLOW}  Step 1: Open:  https://github.com/${GITHUB_USER}/${GITHUB_REPO_NAME}/settings/hooks/new${RESET}"
-echo -e "${YELLOW}  Step 2: Payload URL   = ${JENKINS_URL}/github-webhook/${RESET}"
-echo -e "${YELLOW}          Content type  = application/json${RESET}"
-echo -e "${YELLOW}          Event         = Just the push event${RESET}"
-echo -e "${YELLOW}  Step 3: Click 'Add webhook' — look for green ✓ ping delivery${RESET}"
-echo -e "${YELLOW}${BOLD}╚══════════════════════════════════════════════════════════════════╝${RESET}"
 
 # ── Final summary ─────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════════════════════════════╗${RESET}"
-echo -e "${GREEN}${BOLD}║        ✅  Jenkins Pipeline Setup Complete                       ║${RESET}"
+echo -e "${GREEN}${BOLD}║           ✅ JENKINS PIPELINE SETUP COMPLETE                     ║${RESET}"
 echo -e "${GREEN}${BOLD}╠══════════════════════════════════════════════════════════════════╣${RESET}"
 echo -e "${GREEN}  Jenkins URL:       ${JENKINS_URL}${RESET}"
 echo -e "${GREEN}  Pipeline Job:      ${JENKINS_URL}/job/hm-fashion-pipeline/${RESET}"
 echo -e "${GREEN}  SonarQube URL:     ${SONAR_URL}${RESET}"
 echo -e "${GREEN}  SonarQube Project: ${SONAR_URL}/dashboard?id=${SONAR_PROJECT_KEY}${RESET}"
 echo -e "${GREEN}${BOLD}╠══════════════════════════════════════════════════════════════════╣${RESET}"
-echo -e "${GREEN}  Credentials registered (4):${RESET}"
+echo -e "${GREEN}  Credentials registered in Jenkins:${RESET}"
 echo -e "${GREEN}    ✅ aws-access-key   — AWS Access Key ID${RESET}"
 echo -e "${GREEN}    ✅ aws-secret-key   — AWS Secret Access Key${RESET}"
 echo -e "${GREEN}    ✅ sonar-token      — SonarQube auth token${RESET}"
 echo -e "${GREEN}    ✅ git-credentials  — GitHub username + PAT${RESET}"
 echo -e "${GREEN}${BOLD}╠══════════════════════════════════════════════════════════════════╣${RESET}"
 echo -e "${GREEN}  Next steps:${RESET}"
-echo -e "${GREEN}    1. Configure GitHub webhook (see above)${RESET}"
-echo -e "${GREEN}    2. Verify AWS Account ID injected in k8s_manifests/${RESET}"
-echo -e "${GREEN}    3. Trigger first run: git commit --allow-empty -m 'CI: trigger' && git push${RESET}"
+echo -e "${GREEN}    1. Trigger first run: git commit --allow-empty -m 'ci: trigger' && git push${RESET}"
 echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════════════════════════╝${RESET}"
 echo ""
