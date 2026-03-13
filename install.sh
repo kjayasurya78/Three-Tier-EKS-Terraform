@@ -119,7 +119,7 @@ phase_preflight() {
   remote=$(git remote get-url origin 2>/dev/null || echo "")
   if [[ -n "${remote}" ]]; then
     GITHUB_USER=$(echo "${remote}" | sed -E 's|.*github.com[:/]([^/]+)/.*|\1|')
-    GITHUB_REPO=$(echo "${remote}" | sed -E 's|.*/([^/]+)(\.git)?$|\1|')
+    GITHUB_REPO=$(echo "${remote}" | sed -E 's|.*/||; s|\.git$||')
     success "GitHub: ${GITHUB_USER}/${GITHUB_REPO}"
   else
     warn "No git remote configured. GitOps push will be skipped."
@@ -312,7 +312,7 @@ phase_controllers() {
     --set extraArgs.skip-nodes-with-system-pods=false \
     --wait --timeout=180s
   success "Cluster Autoscaler installed"
-  kubectl get deployment -n kube-system cluster-autoscaler
+  kubectl get deployment -n kube-system -l "app.kubernetes.io/name=aws-cluster-autoscaler"
 
   info "Applying IngressClass..."
   kubectl apply -f "${K8S_DIR}/ingressclass.yaml"
