@@ -262,7 +262,13 @@ curl -sSf -u "${SONAR_AUTH}" \
   -o /dev/null 2>/dev/null || warn "Project may already exist — continuing."
 
 # 7d: Generate analysis token
+# Revoke any existing token with the same name first (idempotent re-runs)
 info "Generating SonarQube analysis token..."
+curl -sS -u "${SONAR_AUTH}" \
+  -X POST \
+  "${SONAR_URL}/api/user_tokens/revoke?name=jenkins-token" \
+  -o /dev/null 2>/dev/null || true
+
 TOKEN_RESPONSE=$(curl -sSf -u "${SONAR_AUTH}" \
   -X POST \
   "${SONAR_URL}/api/user_tokens/generate?name=jenkins-token&type=GLOBAL_ANALYSIS_TOKEN" \
