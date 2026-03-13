@@ -366,7 +366,10 @@ java -version
 
 echo "=== Installing Jenkins ==="
 if ! command -v jenkins &>/dev/null; then
-  curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/jenkins-keyring.gpg
+  curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key -o /tmp/jenkins.key
+  sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/jenkins-keyring.gpg /tmp/jenkins.key
+  sudo chmod 644 /usr/share/keyrings/jenkins-keyring.gpg
+  rm -f /tmp/jenkins.key
   echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.gpg] https://pkg.jenkins.io/debian-stable binary/" | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null
   sudo apt-get update -qq
   sudo apt-get install -y jenkins
@@ -416,8 +419,11 @@ sonar-scanner --version
 
 echo "=== Installing Trivy ==="
 if ! command -v trivy &>/dev/null; then
-  curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/trivy.gpg
-  echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
+  curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key -o /tmp/trivy.key
+  sudo gpg --batch --yes --dearmor -o /usr/share/keyrings/trivy.gpg /tmp/trivy.key
+  sudo chmod 644 /usr/share/keyrings/trivy.gpg
+  rm -f /tmp/trivy.key
+  echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
   sudo apt-get update -qq
   sudo apt-get install -y trivy
 fi
