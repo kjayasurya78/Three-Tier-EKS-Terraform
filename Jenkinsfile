@@ -2,12 +2,12 @@ pipeline {
   agent any
 
   environment {
-    REGISTRY          = "<YOUR_AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com"
+    REGISTRY          = "567776770107.dkr.ecr.ap-south-1.amazonaws.com"
     FRONTEND_IMAGE    = "${REGISTRY}/hm-frontend"
     BACKEND_IMAGE     = "${REGISTRY}/hm-backend"
     AWS_REGION        = "ap-south-1"
     CLUSTER_NAME      = "three-tier-cluster"
-    GIT_REPO          = "https://github.com/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>.git"
+    GIT_REPO          = "https://github.com/Abhiram-Rakesh/Three-Tier-EKS-Terraform.git.git"
     SONAR_PROJECT_KEY = "hm-fashion-clone"
     K8S_NAMESPACE     = "hm-shop"
   }
