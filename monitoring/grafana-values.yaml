@@ -17,6 +17,9 @@ resources:
     cpu:    "200m"
     memory: "256Mi"
 
+deploymentStrategy:
+  type: Recreate
+
 persistence:
   enabled:          true
   storageClassName: hm-ebs-gp2
