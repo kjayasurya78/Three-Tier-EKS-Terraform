@@ -582,6 +582,7 @@ docker --version
 **AWS CLI v2:**
 ```bash
 curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+sudo apt install unzip
 unzip awscliv2.zip && sudo ./aws/install
 aws --version
 # aws-cli/2.x.x
