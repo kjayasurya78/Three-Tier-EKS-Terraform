@@ -71,12 +71,9 @@ aws configure
 Terraform provisions all AWS infrastructure declaratively.
 
 ```bash
-wget -O- https://apt.releases.hashicorp.com/gpg | \
-  sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
 
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-  https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
-  sudo tee /etc/apt/sources.list.d/hashicorp.list
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
 
 sudo apt-get update && sudo apt-get install terraform
 terraform --version
@@ -151,11 +148,7 @@ An SSH key pair is required to access the Jenkins EC2 for setup (Step 12c).
 
 ```bash
 # Create the key pair in ap-south-1
-aws ec2 create-key-pair \
-  --key-name hm-eks-key \
-  --region ap-south-1 \
-  --query KeyMaterial \
-  --output text > hm-eks-key.pem
+aws ec2 create-key-pair --key-name hm-eks-key --region ap-south-1 --query KeyMaterial --output text > hm-eks-key.pem
 
 chmod 400 hm-eks-key.pem
 ```
@@ -264,9 +257,7 @@ cd ..
 ### Step 3 — Configure kubectl
 
 ```bash
-aws eks update-kubeconfig \
-  --region ap-south-1 \
-  --name three-tier-cluster
+aws eks update-kubeconfig --region ap-south-1 --name three-tier-cluster
 
 kubectl get nodes
 ```
@@ -287,18 +278,10 @@ ip-10-0-11-xx.ap-south-1.compute.internal  Ready    <none>   2m    v1.29.x
 **Why this is critical:** Without the EBS CSI driver, the PostgreSQL PersistentVolumeClaim will stay in `Pending` state forever. The pod will never start.
 
 ```bash
-aws eks create-addon \
-  --cluster-name three-tier-cluster \
-  --addon-name aws-ebs-csi-driver \
-  --region ap-south-1
+aws eks create-addon --cluster-name three-tier-cluster --addon-name aws-ebs-csi-driver --region ap-south-1
 
 # Poll until ACTIVE
-watch aws eks describe-addon \
-  --cluster-name three-tier-cluster \
-  --addon-name aws-ebs-csi-driver \
-  --region ap-south-1 \
-  --query "addon.status" \
-  --output text
+watch aws eks describe-addon --cluster-name three-tier-cluster --addon-name aws-ebs-csi-driver --region ap-south-1 --query "addon.status" --output text
 ```
 
 Expected output (after 2–3 minutes):
@@ -358,24 +341,12 @@ alb    ingress.k8s.aws/alb         <none>        5s
 
 ```bash
 # Get VPC ID
-VPC_ID=$(aws eks describe-cluster \
-  --name three-tier-cluster \
-  --region ap-south-1 \
-  --query "cluster.resourcesVpcConfig.vpcId" \
-  --output text)
+VPC_ID=$(aws eks describe-cluster --name three-tier-cluster --region ap-south-1 --query "cluster.resourcesVpcConfig.vpcId" --output text)
 
 helm repo add eks https://aws.github.io/eks-charts
 helm repo update
 
-helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
-  --namespace kube-system \
-  --set clusterName=three-tier-cluster \
-  --set region=ap-south-1 \
-  --set vpcId=${VPC_ID} \
-  --set serviceAccount.create=true \
-  --set serviceAccount.name=aws-load-balancer-controller \
-  --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:role/hm-shop-alb-controller-role" \
-  --wait
+helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller --namespace kube-system --set clusterName=three-tier-cluster --set region=ap-south-1 --set vpcId=${VPC_ID} --set serviceAccount.create=true --set serviceAccount.name=aws-load-balancer-controller --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:role/hm-shop-alb-controller-role" --wait
 
 kubectl get deployment -n kube-system aws-load-balancer-controller
 kubectl get pods -n kube-system | grep aws-load-balancer
@@ -397,14 +368,7 @@ aws-load-balancer-controller   2/2     2            2           60s
 helm repo add autoscaler https://kubernetes.github.io/autoscaler
 helm repo update
 
-helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler \
-  --namespace kube-system \
-  --set autoDiscovery.clusterName=three-tier-cluster \
-  --set awsRegion=ap-south-1 \
-  --set rbac.serviceAccount.create=true \
-  --set rbac.serviceAccount.name=cluster-autoscaler \
-  --set "rbac.serviceAccount.annotations.eks\.amazonaws\.com/role-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:role/hm-shop-cluster-autoscaler-role" \
-  --wait
+helm upgrade --install cluster-autoscaler autoscaler/cluster-autoscaler --namespace kube-system --set autoDiscovery.clusterName=three-tier-cluster --set awsRegion=ap-south-1 --set rbac.serviceAccount.create=true --set rbac.serviceAccount.name=cluster-autoscaler --set "rbac.serviceAccount.annotations.eks\.amazonaws\.com/role-arn=arn:aws:iam::${AWS_ACCOUNT_ID}:role/hm-shop-cluster-autoscaler-role" --wait
 
 kubectl get deployment -n kube-system cluster-autoscaler
 ```
@@ -468,18 +432,13 @@ git push origin main
 ```bash
 kubectl create namespace argocd
 
-kubectl apply -n argocd \
-  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 # Wait for ArgoCD server to be ready
-kubectl wait deployment/argocd-server \
-  --namespace argocd \
-  --for=condition=Available \
-  --timeout=180s
+kubectl wait deployment/argocd-server --namespace argocd --for=condition=Available --timeout=180s
 
 # Get initial admin password
-ARGOCD_PASS=$(kubectl -n argocd get secret argocd-initial-admin-secret \
-  -o jsonpath="{.data.password}" | base64 -d)
+ARGOCD_PASS=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
 echo "ArgoCD password: ${ARGOCD_PASS}"
 
 # Deploy the hm-shop Application
@@ -491,8 +450,7 @@ kubectl apply -f argocd/application.yaml
 By default ArgoCD's service is `ClusterIP`. Patch it to `LoadBalancer` so you can access it directly:
 
 ```bash
-kubectl patch svc argocd-server -n argocd \
-  -p '{"spec": {"type": "LoadBalancer"}}'
+kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
 
 # Wait for the external IP to be assigned (1-3 minutes)
 kubectl get svc argocd-server -n argocd --watch
@@ -501,8 +459,7 @@ kubectl get svc argocd-server -n argocd --watch
 Once `EXTERNAL-IP` is populated:
 
 ```bash
-ARGOCD_URL=$(kubectl get svc argocd-server -n argocd \
-  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+ARGOCD_URL=$(kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 echo "ArgoCD URL: https://${ARGOCD_URL}"
 ```
 
@@ -569,12 +526,7 @@ hm-shop-ingress   alb     *       k8s-hmshop-xxxx.ap-south-1.elb.amazonaws.com  
 #### 12a — Get Jenkins EC2 IP
 
 ```bash
-JENKINS_IP=$(aws ec2 describe-instances \
-  --filters "Name=tag:Name,Values=jenkins-server" \
-            "Name=instance-state-name,Values=running" \
-  --query "Reservations[0].Instances[0].PublicIpAddress" \
-  --region ap-south-1 \
-  --output text)
+JENKINS_IP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=jenkins-server" "Name=instance-state-name,Values=running" --query "Reservations[0].Instances[0].PublicIpAddress" --region ap-south-1 --output text)
 echo "Jenkins IP: ${JENKINS_IP}"
 ```
 
@@ -658,11 +610,8 @@ sonar-scanner --version
 
 **Trivy:**
 ```bash
-curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key \
-  | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
-echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] \
-  https://aquasecurity.github.io/trivy-repo/deb generic main" \
-  | sudo tee /etc/apt/sources.list.d/trivy.list
+curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
 sudo apt-get update && sudo apt-get install -y trivy
 trivy --version
 ```
@@ -699,13 +648,7 @@ sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 ```bash
 ssh -i hm-eks-key.pem ubuntu@${JENKINS_IP}
 
-docker run -d \
-  --name sonarqube \
-  --restart unless-stopped \
-  -p 9000:9000 \
-  -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true \
-  -v sonarqube_data:/opt/sonarqube/data \
-  sonarqube:lts-community
+docker run -d --name sonarqube --restart unless-stopped -p 9000:9000 -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true -v sonarqube_data:/opt/sonarqube/data sonarqube:lts-community
 ```
 
 Wait ~60 seconds, then open `http://<JENKINS_IP>:9000`.
@@ -863,16 +806,10 @@ helm repo add grafana              https://grafana.github.io/helm-charts
 helm repo update
 
 # Install Prometheus stack
-helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
-  --namespace monitoring \
-  --values monitoring/prometheus-values.yaml \
-  --wait
+helm upgrade --install prometheus prometheus-community/kube-prometheus-stack --namespace monitoring --values monitoring/prometheus-values.yaml --wait
 
 # Install Grafana
-helm upgrade --install grafana grafana/grafana \
-  --namespace monitoring \
-  --values monitoring/grafana-values.yaml \
-  --wait
+helm upgrade --install grafana grafana/grafana --namespace monitoring --values monitoring/grafana-values.yaml --wait
 ```
 
 **Accessing Grafana:**
@@ -886,8 +823,7 @@ kubectl get svc grafana -n monitoring --watch
 Once `EXTERNAL-IP` is populated:
 
 ```bash
-GRAFANA_URL=$(kubectl get svc grafana -n monitoring \
-  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+GRAFANA_URL=$(kubectl get svc grafana -n monitoring -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 echo "Grafana URL: http://${GRAFANA_URL}"
 ```
 
@@ -911,8 +847,7 @@ Pre-imported dashboards (under **H&M Shop** folder):
 
 ```bash
 # Get the ALB URL
-ALB_URL=$(kubectl get ingress hm-shop-ingress -n hm-shop \
-  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+ALB_URL=$(kubectl get ingress hm-shop-ingress -n hm-shop -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
 
 # Test the API health endpoint
 curl http://${ALB_URL}/api/health
@@ -989,9 +924,7 @@ git push origin main
 kubectl get application hm-shop -n argocd
 
 # Force sync immediately (don't wait 3 minutes)
-kubectl patch application hm-shop -n argocd \
-  --type merge \
-  -p '{"operation":{"sync":{"syncStrategy":{"hook":{"force":true}}}}}'
+kubectl patch application hm-shop -n argocd --type merge -p '{"operation":{"sync":{"syncStrategy":{"hook":{"force":true}}}}}'
 ```
 
 ### Rolling Restart
@@ -1009,8 +942,7 @@ kubectl rollout status  deployment/backend  -n hm-shop
 POSTGRES_POD=$(kubectl get pod -n hm-shop -l app=postgres -o jsonpath='{.items[0].metadata.name}')
 
 # Open psql
-kubectl exec -it ${POSTGRES_POD} -n hm-shop -- \
-  psql -U hmuser -d hmshop
+kubectl exec -it ${POSTGRES_POD} -n hm-shop -- psql -U hmuser -d hmshop
 
 # Once inside psql:
 \dt                          -- list tables
@@ -1081,16 +1013,10 @@ kubectl describe pod -n hm-shop -l app=postgres | grep -A 5 Events
 **Fix:**
 ```bash
 # Verify EBS CSI Driver is ACTIVE
-aws eks describe-addon \
-  --cluster-name three-tier-cluster \
-  --addon-name aws-ebs-csi-driver \
-  --region ap-south-1 \
-  --query "addon.status" --output text
+aws eks describe-addon --cluster-name three-tier-cluster --addon-name aws-ebs-csi-driver --region ap-south-1 --query "addon.status" --output text
 
 # If not ACTIVE, check node role has AmazonEBSCSIDriverPolicy attached
-aws iam list-attached-role-policies \
-  --role-name three-tier-cluster-node-role \
-  --query "AttachedPolicies[].PolicyName"
+aws iam list-attached-role-policies --role-name three-tier-cluster-node-role --query "AttachedPolicies[].PolicyName"
 ```
 
 ---
@@ -1101,17 +1027,13 @@ aws iam list-attached-role-policies \
 
 **Diagnosis:**
 ```bash
-kubectl logs -n kube-system \
-  -l app.kubernetes.io/name=aws-load-balancer-controller \
-  --tail=50
+kubectl logs -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller --tail=50
 ```
 
 **Fix:**
 ```bash
 # Check VPC subnets have correct tags
-aws ec2 describe-subnets \
-  --filters "Name=vpc-id,Values=<VPC_ID>" \
-  --query "Subnets[*].{ID:SubnetId,Tags:Tags}"
+aws ec2 describe-subnets --filters "Name=vpc-id,Values=<VPC_ID>" --query "Subnets[*].{ID:SubnetId,Tags:Tags}"
 # Public subnets need: kubernetes.io/role/elb = 1
 # Private subnets need: kubernetes.io/role/internal-elb = 1
 
@@ -1136,12 +1058,10 @@ kubectl describe application hm-shop -n argocd | grep -A 10 "Conditions"
 cat argocd/application.yaml | grep repoURL
 
 # Check ArgoCD can reach GitHub
-kubectl exec -it deployment/argocd-server -n argocd -- \
-  argocd-util repo ls
+kubectl exec -it deployment/argocd-server -n argocd -- argocd-util repo ls
 
 # Force a sync
-kubectl patch application hm-shop -n argocd \
-  --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+kubectl patch application hm-shop -n argocd --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
 ```
 
 ---
@@ -1164,9 +1084,7 @@ aws iam list-attached-user-policies --user-name <IAM-USER-NAME>
 
 # Test ECR login manually on Jenkins EC2
 ssh -i hm-eks-key.pem ubuntu@${JENKINS_IP}
-aws ecr get-login-password --region ap-south-1 \
-  | docker login --username AWS --password-stdin \
-    ${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com
+aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com
 # Expected: Login Succeeded
 ```
 
@@ -1264,10 +1182,7 @@ curl -I http://<JENKINS_IP>:8080/github-webhook/
 **Fix:**
 ```bash
 # Verify port 8080 is open in Jenkins security group
-aws ec2 describe-security-groups \
-  --filters "Name=group-name,Values=hm-shop-jenkins-sg" \
-  --region ap-south-1 \
-  --query "SecurityGroups[0].IpPermissions"
+aws ec2 describe-security-groups --filters "Name=group-name,Values=hm-shop-jenkins-sg" --region ap-south-1 --query "SecurityGroups[0].IpPermissions"
 
 # Verify Jenkins GitHub plugin is installed
 # Jenkins → Manage Jenkins → Plugins → Installed → search "github"
