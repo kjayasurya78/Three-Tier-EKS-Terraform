@@ -1,7 +1,7 @@
 # Grafana values for H&M Shop monitoring
 
 adminUser:     admin
-adminPassword: <YOUR_GRAFANA_PASSWORD>
+adminPassword: HMShop@Grafana1
 
 service:
   type: LoadBalancer
